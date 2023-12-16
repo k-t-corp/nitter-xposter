@@ -1,14 +1,22 @@
+import os
 from nitter_xposter.xposter import xpost, XpostConfig
+
+
+def env_or_bust(env: str):
+    if env not in os.environ:
+        raise Exception(f"Environment {env} is not set")
+    return os.environ[env]
+
 
 if __name__ == "__main__":
     xpost_config = XpostConfig(
-        sqlite_file="db.db",
-        nitter_host="nitter.ktachibana.party",
-        twitter_handle="KTachibana_M",
-        mastodon_host="mastodon.ktachibana.party",
-        mastodon_client_id="1Y6t60OVD_uvnBqbLwKJjA3fdSUO340hW1owyBHx_x4",
-        mastodon_client_secret="rB7ZxLQvicr7W9P_ulPNbI7AbujmH3bb8uDqqJntKVE",
-        mastodon_access_token="2BJENwferxJlfvt2czEz7zPyn6sdohwB-jP42Kkb7sE",
-        mastodon_status_limit=10
+        sqlite_file=env_or_bust('SQLITE_FILE'),
+        nitter_host=env_or_bust('NITTER_HOST'),
+        twitter_handle=env_or_bust('TWITTER_HANDLE'),
+        mastodon_host=env_or_bust('MASTODON_HOST'),
+        mastodon_client_id=env_or_bust('MASTODON_CLIENT_ID'),
+        mastodon_client_secret=env_or_bust('MASTODON_CLIENT_SECRET'),
+        mastodon_access_token=env_or_bust('MASTODON_ACCESS_TOKEN'),
+        mastodon_status_limit=int(env_or_bust('MASTODON_STATUS_LIMIT'))
     )
     xpost(xpost_config)

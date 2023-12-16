@@ -60,11 +60,17 @@ def parse_feed_entry(entry, twitter_handle: str) -> ParsedEntry:
 
 
 def xpost(config: XpostConfig):
+    logging.info("Started crosspost")
     setup_database(config.sqlite_file)
 
     # Parsing the RSS feed
     rss_url = f"https://{config.nitter_host}/{config.twitter_handle}/rss"
-    res = requests.get(rss_url)
+    try:
+        res = requests.get(rss_url)
+    except Exception as e:
+        # TODO: handle error
+        logging.error("Error retrieving tweets, aborting: " + str(e))
+        return 
     feed = feedparser.parse(res.text)
 
     parsed_entries = []  # type: List[ParsedEntry]
@@ -91,6 +97,7 @@ def xpost(config: XpostConfig):
 
     # If last position is already lastest or cannot be found in the feed (assume just started tracking), set last position to the newest entry and quit
     if last_position_index in (0, -1):
+        logging.info("Finished crosspost. Last position is already latest or cannot be found in the feed")
         set_last_position(config.sqlite_file, rss_url, parsed_entries[0].id)
         return
 
@@ -120,3 +127,4 @@ def xpost(config: XpostConfig):
 
     # Set last position to the newest entry
     set_last_position(config.sqlite_file, rss_url, parsed_entries[new_position_index].id)
+    logging.info("Finished crosspost")

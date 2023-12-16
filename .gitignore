@@ -268,3 +268,4 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,visualstudiocode,python
 *.db
+docker-compose.yml
