@@ -17,4 +17,5 @@ COPY . /app
 
 # Run the command on container startup
 ENV PYTHONUNBUFFERED=1
+RUN chmod +x /app/run.sh
 CMD /app/run.sh
