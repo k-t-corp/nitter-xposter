@@ -33,6 +33,7 @@ services:
     image: ghcr.io/k-t-corp/nitter-xposter:latest
     volumes:
       - ./dbs:/app/dbs
+#      - ./post.sh:/app/post.sh  # you can optionally mount a shell script at /app/post.sh to run after every Nitter crawl to perform tasks such as sending a heartbeat
     environment:
       SQLITE_FILE: /app/dbs/db.db
       NITTER_HOST: nitter.ktachibana.party  # you can also use another nitter instance of your choice
