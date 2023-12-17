@@ -26,6 +26,8 @@ def get_last_position(sqlite_file: str, feed_name: str):
     cursor.execute('SELECT last_id FROM last_position WHERE feed_name = ?', (feed_name,))
     last_id = cursor.fetchone()
     last_id = last_id[0] if last_id else None
+
+    conn.close()
     return last_id
 
 
