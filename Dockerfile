@@ -10,7 +10,7 @@ COPY ./requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install cron
-RUN apt-get update && apt-get -y install cron
+RUN apt-get update && apt-get -y install cron curl
 
 # Add the current directory contents into the container at /app
 COPY . /app
@@ -18,4 +18,5 @@ COPY . /app
 # Run the command on container startup
 ENV PYTHONUNBUFFERED=1
 RUN chmod +x /app/run.sh
+RUN chmod +x /app/main.sh
 CMD /app/run.sh
