@@ -10,7 +10,7 @@ Crosspost from Twitter to Mastodon (based on Nitter)
 - [ ] Video
 
 ## Usage
-The easiest way tp use this program is to run it as a docker compose service on your NAS or a VPS.
+The easiest way to use this program is to run it as a docker compose service on your NAS or a VPS.
 
 ### Obtain Mastodon credentials
 You need to create a developer application on your Mastodon instance first
