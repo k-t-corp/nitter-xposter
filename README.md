@@ -43,6 +43,7 @@ services:
       MASTODON_CLIENT_SECRET: <REPLACE WITH YOUR MASTODON CLIENT SECRET>
       MASTODON_ACCESS_TOKEN: <REPLACE WITH YOUR MASTODON ACCESS TOKEN>
       MASTODON_STATUS_LIMIT: '10'  # set the maximum of statuses to be posted at once
+    restart: always
 ```
 
 This will crawl the Nitter RSS for your Twitter username every 5 minutes, and crosspost the tweets to your Mastodon account.
