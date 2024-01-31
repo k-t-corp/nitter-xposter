@@ -1,3 +1,5 @@
+import os
+import tempfile
 import requests
 import feedparser
 import html
@@ -40,19 +42,39 @@ def convert_description_to_text(description):
     return text
 
 
+def find_images_in_description(description):
+    # Use BeautifulSoup to parse the HTML content
+    soup = BeautifulSoup(description, "html.parser")
+
+    # Find all image tags and return their URLs
+    image_urls = []
+    for img in soup.find_all('img'):
+        if img.has_attr('src'):
+            # nitter replaces image links with nitter links but with http (why...)
+            image_urls.append(img['src'])
+
+    return image_urls
+
+
 @dataclass
 class ParsedEntry:
     id: str
     text: Optional[str]
     rt: Optional[str]
+    images: List[str]
 
 
 def parse_feed_entry(entry, twitter_handle: str) -> ParsedEntry:
-    parsed_entry = ParsedEntry(entry.id, None, None)
+    parsed_entry = ParsedEntry(entry.id, None, None, [])
     if entry.description:
         # Parse text
         text = convert_description_to_text(entry.description)
         parsed_entry.text = text
+
+        # Parse images
+        images = find_images_in_description(entry.description)
+        parsed_entry.images = images
+
     if entry.author and entry.author != f"@{twitter_handle}" and entry.link:
         # Parse RT
         # nitter replaces RT links with (http) nitter links, but we want canonical twitter links
@@ -63,7 +85,23 @@ def parse_feed_entry(entry, twitter_handle: str) -> ParsedEntry:
         parsed_rt = parsed_rt._replace(netloc='twitter.com')
         parsed_rt = parsed_rt._replace(scheme='https')
         parsed_entry.rt = urlunparse(parsed_rt)
+
     return parsed_entry
+
+
+def download_image_to_tmp_file(image: str) -> Optional[str]:
+    ss = image.split('.')
+    if len(ss) < 2:
+        logging.error("Error parsing image extension, aborting: " + image)
+        return None
+    with tempfile.NamedTemporaryFile(suffix='.'+ss[-1], delete=False) as f:
+        logging.info("Downloading image from nitter: " + image)
+        res = requests.get(image)
+        if res.status_code >= 400:
+            logging.error("Image downloading encountered with >= 400 status code, aborting: " + image)
+            return None
+        f.write(res.content)
+        return f.name
 
 
 def xpost(config: XpostConfig):
@@ -119,13 +157,36 @@ def xpost(config: XpostConfig):
     for i in range(new_position_index, max(-1, new_position_index - config.mastodon_status_limit), -1):
         parsed_entry = parsed_entries[i]
         status_text = ''
+
         if parsed_entry.text:
             status_text += parsed_entry.text
+
         if parsed_entry.rt:
             status_text += f"\nRT: {parsed_entry.rt}"
+
+        media_ids = []
+        if parsed_entry.images:
+            for image in parsed_entry.images:
+                image_file = download_image_to_tmp_file(image)
+                if not image_file:
+                    logging.error("Error downloading image from nitter, aborting: " + image)
+                    return
+                logging.info("Uploading image to Mastodon: " + image_file)
+                try:
+                    media = mastodon.media_post(image_file)
+                except Exception as e:
+                    # TODO: handle error
+                    logging.error("Error post media to Mastodon, aborting: " + str(e))
+                    return
+                if 'id' not in media:
+                    logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
+                    return
+                media_ids.append(media['id'])
+                os.remove(image_file)
+
         logging.info("Sending to Mastodon: " + status_text)
         try:
-            mastodon.status_post(status=status_text)
+            mastodon.status_post(status=status_text, media_ids=media_ids)
             new_position_index = i
         except Exception as e:
             # TODO: handle error

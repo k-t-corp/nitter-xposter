@@ -6,7 +6,7 @@ Crosspost from Twitter to Mastodon (based on Nitter)
 * Supported tweet types
 - [x] Text
 - [x] Retweet
-- [ ] Image
+- [x] Image
 - [ ] Video
 
 ## Usage
