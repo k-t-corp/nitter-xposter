@@ -90,11 +90,8 @@ def parse_feed_entry(entry, twitter_handle: str) -> ParsedEntry:
 
 
 def download_image_to_tmp_file(image: str) -> Optional[str]:
-    ss = image.split('.')
-    if len(ss) < 2:
-        logging.error("Error parsing image extension, aborting: " + image)
-        return None
-    with tempfile.NamedTemporaryFile(suffix='.'+ss[-1], delete=False) as f:
+    # TODO: assumes twitter uses jpg?
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
         logging.info("Downloading image from nitter: " + image)
         res = requests.get(image)
         if res.status_code >= 400:
