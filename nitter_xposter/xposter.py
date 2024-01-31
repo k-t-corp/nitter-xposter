@@ -186,7 +186,10 @@ def xpost(config: XpostConfig):
 
         logging.info("Sending to Mastodon: " + status_text)
         try:
-            mastodon.status_post(status=status_text, media_ids=media_ids)
+            if media_ids:
+                mastodon.status_post(status=status_text, media_ids=media_ids)
+            else:
+                mastodon.status_post(status=status_text)
             new_position_index = i
         except Exception as e:
             # TODO: handle error
