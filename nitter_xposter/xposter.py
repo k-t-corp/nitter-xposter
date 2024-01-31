@@ -6,6 +6,7 @@ from typing import Optional, List
 from dataclasses import dataclass
 from bs4 import BeautifulSoup
 from mastodon import Mastodon
+from urllib.parse import urlparse, urlunparse
 from .db import setup_database, get_last_position, set_last_position
 
 
@@ -54,8 +55,14 @@ def parse_feed_entry(entry, twitter_handle: str) -> ParsedEntry:
         parsed_entry.text = text
     if entry.author and entry.author != f"@{twitter_handle}" and entry.link:
         # Parse RT
+        # nitter replaces RT links with (http) nitter links, but we want canonical twitter links
+        # so that a user can choose to use Twitter as-is,
+        # or uses an alternative frontend redirecting extension that redirects to another nitter instance of their choice
         rt = entry.link
-        parsed_entry.rt = rt
+        parsed_rt = urlparse(rt)
+        parsed_rt = parsed_rt._replace(netloc='twitter.com')
+        parsed_rt = parsed_rt._replace(scheme='https')
+        parsed_entry.rt = urlunparse(parsed_rt)
     return parsed_entry
 
 

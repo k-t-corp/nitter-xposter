@@ -160,7 +160,7 @@ class XposterTestCase(unittest.TestCase):
         ]))
         
         xpost(self.xpost_config)
-        mock_mastodon.status_post.assert_called_once_with(status="test 2\nRT: http://nitter.example.com/rt_twitter_handle/status/2#m")
+        mock_mastodon.status_post.assert_called_once_with(status="test 2\nRT: https://twitter.com/rt_twitter_handle/status/2#m")
 
     @patch('nitter_xposter.xposter.Mastodon')
     @responses.activate
