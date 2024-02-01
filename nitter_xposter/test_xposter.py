@@ -124,7 +124,7 @@ class XposterTestCase(unittest.TestCase):
         ]))
         
         xpost(self.xpost_config)
-        mock_mastodon.status_post.assert_called_once_with(status="test 2")
+        mock_mastodon.status_post.assert_called_once_with(status="test 2", media_ids=[])
 
     @patch('nitter_xposter.xposter.Mastodon')
     @responses.activate
@@ -160,7 +160,32 @@ class XposterTestCase(unittest.TestCase):
         ]))
         
         xpost(self.xpost_config)
-        mock_mastodon.status_post.assert_called_once_with(status="test 2\nRT: https://twitter.com/rt_twitter_handle/status/2#m")
+        mock_mastodon.status_post.assert_called_once_with(status="test 2\nRT: https://twitter.com/rt_twitter_handle/status/2#m", media_ids=[])
+
+    @patch('nitter_xposter.xposter.Mastodon')
+    @patch('nitter_xposter.xposter.download_image_to_tmp_file')
+    @patch('nitter_xposter.xposter.cleanup_tmp_file')
+    @responses.activate
+    def test_xpost_one_new_status_with_img(self, mock_cleanup_tmp_file, mock_download_image_to_tmp_file, mock_Mastodon):
+        self._add_response(_response("<p>test</p>"))
+        mock_mastodon = mock_Mastodon.return_value
+
+        xpost(self.xpost_config)
+        mock_mastodon.status_post.assert_not_called()
+
+        time.sleep(1)
+        self._add_response(_response_with_items([
+            TestItem("<p>test 2</p><img src=\"http://nitter.example.com/pic/media%2Faaaaaa.jpg\" style=\"max-width:250px;\" />", 2),
+            TestItem("<p>test 1</p>", 1),
+        ]))
+        
+        mock_download_image_to_tmp_file.return_value = "tmp_file"
+        mock_mastodon.media_post.return_value = {'id': 'bbbbbb'}
+        xpost(self.xpost_config)
+        mock_download_image_to_tmp_file.assert_called_once_with("http://nitter.example.com/pic/media%2Faaaaaa.jpg")
+        mock_mastodon.media_post.assert_called_once_with("tmp_file")
+        mock_cleanup_tmp_file.assert_called_once_with("tmp_file")
+        mock_mastodon.status_post.assert_called_once_with(status="test 2", media_ids=['bbbbbb'])
 
     @patch('nitter_xposter.xposter.Mastodon')
     @responses.activate
@@ -180,8 +205,8 @@ class XposterTestCase(unittest.TestCase):
         
         xpost(self.xpost_config)
         mock_mastodon.status_post.assert_has_calls([
-            call(status="test 2"),
-            call(status="test 3")
+            call(status="test 2", media_ids=[]),
+            call(status="test 3", media_ids=[])
         ], any_order=False)
         self.assertEqual(mock_mastodon.status_post.call_count, 2)
 
@@ -207,8 +232,8 @@ class XposterTestCase(unittest.TestCase):
         
         xpost(xpost_config)
         mock_mastodon.status_post.assert_has_calls([
-            call(status="test 2"),
-            call(status="test 3")
+            call(status="test 2", media_ids=[]),
+            call(status="test 3", media_ids=[])
         ], any_order=False)
         self.assertEqual(mock_mastodon.status_post.call_count, 2)
 
@@ -233,15 +258,15 @@ class XposterTestCase(unittest.TestCase):
         mock_mastodon.status_post.side_effect = [None, Exception("Error posting status"), None]
         xpost(self.xpost_config)
         mock_mastodon.status_post.assert_has_calls([
-            call(status="test 2"),
-            call(status="test 3")
+            call(status="test 2", media_ids=[]),
+            call(status="test 3", media_ids=[])
         ], any_order=False)
         self.assertEqual(mock_mastodon.status_post.call_count, 2)
         mock_mastodon.status_post.side_effect = [None, None]
         xpost(self.xpost_config)
         mock_mastodon.status_post.assert_has_calls([
-            call(status="test 3"),
-            call(status="test 4")
+            call(status="test 3", media_ids=[]),
+            call(status="test 4", media_ids=[])
         ], any_order=False)
         # Assert 4 because the first run calls 2, 3 (although 3 fails) and the second run calls 3, 4
         self.assertEqual(mock_mastodon.status_post.call_count, 4)

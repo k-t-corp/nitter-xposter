@@ -101,6 +101,10 @@ def download_image_to_tmp_file(image: str) -> Optional[str]:
         return f.name
 
 
+def cleanup_tmp_file(image_file: str):
+    os.remove(image_file)
+
+
 def xpost(config: XpostConfig):
     logging.info("Started crosspost")
     setup_database(config.sqlite_file)
@@ -179,14 +183,11 @@ def xpost(config: XpostConfig):
                     logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
                     return
                 media_ids.append(media['id'])
-                os.remove(image_file)
+                cleanup_tmp_file(image_file)
 
         logging.info("Sending to Mastodon: " + status_text)
         try:
-            if media_ids:
-                mastodon.status_post(status=status_text, media_ids=media_ids)
-            else:
-                mastodon.status_post(status=status_text)
+            mastodon.status_post(status=status_text, media_ids=media_ids)
             new_position_index = i
         except Exception as e:
             # TODO: handle error
