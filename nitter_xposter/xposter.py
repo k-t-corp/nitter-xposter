@@ -24,14 +24,22 @@ class XpostConfig:
     mastodon_status_limit: int
 
 
-def convert_description_to_text(description):
+def convert_description_to_text(description, nitter_host):
     # Use BeautifulSoup to parse the HTML content
     soup = BeautifulSoup(description, "html.parser")
 
     # Find all anchor tags and replace them with their URL
     for a in soup.find_all('a'):
         if a.has_attr('href'):
-            a.replace_with(a['href'])
+            href = a['href']
+            parsed_href = urlparse(href)
+            if parsed_href.netloc == nitter_host:
+                # nitter replaces Twitter links such as hashtags with (http) nitter links, but we want canonical twitter links
+                # so that a user can choose to use Twitter as-is,
+                # or uses an alternative frontend redirecting extension that redirects to another nitter instance of their choice
+                parsed_href = parsed_href._replace(netloc='twitter.com')
+                parsed_href = parsed_href._replace(scheme='https')
+            a.replace_with(urlunparse(parsed_href))
 
     # Extract text, which now includes URLs in place of anchor tags
     text = soup.get_text()
@@ -50,7 +58,6 @@ def find_images_in_description(description):
     image_urls = []
     for img in soup.find_all('img'):
         if img.has_attr('src'):
-            # nitter replaces image links with nitter links but with http (why...)
             image_urls.append(img['src'])
 
     return image_urls
@@ -64,11 +71,11 @@ class ParsedEntry:
     images: List[str]
 
 
-def parse_feed_entry(entry, twitter_handle: str) -> ParsedEntry:
+def parse_feed_entry(entry, twitter_handle, nitter_host: str) -> ParsedEntry:
     parsed_entry = ParsedEntry(entry.id, None, None, [])
     if entry.description:
         # Parse text
-        text = convert_description_to_text(entry.description)
+        text = convert_description_to_text(entry.description, nitter_host)
         parsed_entry.text = text
 
         # Parse images
@@ -124,7 +131,7 @@ def xpost(config: XpostConfig):
     if feed.bozo == 0:
         # Successfully parsed
         for entry in feed.entries:
-            parsed_entries.append(parse_feed_entry(entry, config.twitter_handle))
+            parsed_entries.append(parse_feed_entry(entry, config.twitter_handle, config.nitter_host))
     else:
         raise feed.bozo_exception  
     

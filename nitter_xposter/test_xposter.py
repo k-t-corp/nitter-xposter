@@ -188,6 +188,48 @@ class XposterTestCase(unittest.TestCase):
         mock_mastodon.status_post.assert_called_once_with(status="test 2", media_ids=['bbbbbb'])
 
     @patch('nitter_xposter.xposter.Mastodon')
+    @patch('nitter_xposter.xposter.download_image_to_tmp_file')
+    @patch('nitter_xposter.xposter.cleanup_tmp_file')
+    @responses.activate
+    def test_xpost_one_new_status_with_img_but_failed_to_download(self, mock_cleanup_tmp_file, mock_download_image_to_tmp_file, mock_Mastodon):
+        self._add_response(_response("<p>test</p>"))
+        mock_mastodon = mock_Mastodon.return_value
+
+        xpost(self.xpost_config)
+        mock_mastodon.status_post.assert_not_called()
+
+        time.sleep(1)
+        self._add_response(_response_with_items([
+            TestItem("<p>test 2</p><img src=\"http://nitter.example.com/pic/media%2Faaaaaa.jpg\" style=\"max-width:250px;\" />", 2),
+            TestItem("<p>test 1</p>", 1),
+        ]))
+        
+        mock_download_image_to_tmp_file.return_value = None
+        xpost(self.xpost_config)
+        mock_download_image_to_tmp_file.assert_called_once_with("http://nitter.example.com/pic/media%2Faaaaaa.jpg")
+        mock_mastodon.media_post.assert_not_called()
+        mock_cleanup_tmp_file.assert_not_called()
+        mock_mastodon.status_post.assert_not_called()
+
+    @patch('nitter_xposter.xposter.Mastodon')
+    @responses.activate
+    def test_xpost_one_new_status_with_nitter_links(self, mock_Mastodon):
+        self._add_response(_response("<p>test</p>"))
+        mock_mastodon = mock_Mastodon.return_value
+
+        xpost(self.xpost_config)
+        mock_mastodon.status_post.assert_not_called()
+
+        time.sleep(1)
+        self._add_response(_response_with_items([
+            TestItem("<p>test 2 <a href=\"http://nitter.example.com/search?q=%23hashtag\">#hashtag</a></p>", 2),
+            TestItem("<p>test 1</p>", 1),
+        ]))
+        
+        xpost(self.xpost_config)
+        mock_mastodon.status_post.assert_called_once_with(status="test 2 https://twitter.com/search?q=%23hashtag", media_ids=[])
+
+    @patch('nitter_xposter.xposter.Mastodon')
     @responses.activate
     def test_xpost_multiple_new_statuses(self, mock_Mastodon):
         self._add_response(_response("<p>test</p>"))
