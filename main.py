@@ -12,6 +12,7 @@ if __name__ == "__main__":
     xpost_config = XpostConfig(
         sqlite_file=env_or_bust('SQLITE_FILE'),
         nitter_host=env_or_bust('NITTER_HOST'),
+        nitter_https=bool(os.environ.get('NITTER_HTTPS', 'true') == 'true'),
         twitter_handle=env_or_bust('TWITTER_HANDLE'),
         mastodon_host=env_or_bust('MASTODON_HOST'),
         mastodon_client_id=env_or_bust('MASTODON_CLIENT_ID'),

@@ -16,6 +16,7 @@ from .db import setup_database, get_last_position, set_last_position
 class XpostConfig:
     sqlite_file: str
     nitter_host: str
+    nitter_https: bool
     twitter_handle: str
     mastodon_host: str
     mastodon_client_id: str
@@ -117,7 +118,10 @@ def xpost(config: XpostConfig):
     setup_database(config.sqlite_file)
 
     # Parsing the RSS feed
-    rss_url = f"https://{config.nitter_host}/{config.twitter_handle}/rss"
+    if config.nitter_https:
+        rss_url = f"https://{config.nitter_host}/{config.twitter_handle}/rss"
+    else:
+        rss_url = f"http://{config.nitter_host}/{config.twitter_handle}/rss"
     try:
         res = requests.get(rss_url)
     except Exception as e:

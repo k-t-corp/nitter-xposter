@@ -43,7 +43,8 @@ services:
 #      - ./post.sh:/app/post.sh  # you can optionally mount a shell script at /app/post.sh to run after every Nitter crawl to perform tasks such as sending a heartbeat
     environment:
       SQLITE_FILE: /app/dbs/db.db
-      NITTER_HOST: nitter.ktachibana.party  # you can also use another nitter instance of your choice
+      NITTER_HOST: <ENTER YOUR NITTER HOST HERE>
+      NITTER_HTTPS: <'true' OR 'false'>  # by default 'true'; set to 'false' if your Nitter instance does not support https
       TWITTER_HANDLE: <REPLACE WITH YOUR TWITTER USERNAME, WITHOUT @>
       MASTODON_HOST: <REPLACE WITH YOUR MASTODON INSTANCE, e.g. mastodon.ktachibana.party>
       MASTODON_CLIENT_ID: <REPLACE WITH YOUR MASTODON CLIENT KEY>
