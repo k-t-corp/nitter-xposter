@@ -1,6 +1,13 @@
 # nitter-xposter
 Crosspost from Twitter to Mastodon (based on Nitter)
 
+## ⚠️ PSA
+It is increasingly [hard](https://github.com/zedeus/nitter/issues/983) to use and host a public Nitter instance.
+
+As a result, it is probably not a good idea to use it with a public Nitter instance.
+
+When it's ready, please check out [sekai-soft/freebird](https://github.com/sekai-soft/freebird) for a guide on how to self-host your own Nitter instance alongside `nitter-xposter`.
+
 ## Notice
 * Twitter crawling is based on Nitter, so only public accounts are supported.
 * Supported tweet types
