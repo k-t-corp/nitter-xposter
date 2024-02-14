@@ -193,7 +193,7 @@ class XposterTestCase(unittest.TestCase):
     @patch('nitter_xposter.xposter.cleanup_tmp_file')
     @responses.activate
     def test_xpost_one_new_status_with_img_but_failed_to_download(self, mock_cleanup_tmp_file, mock_download_image_to_tmp_file, mock_Mastodon):
-        self._add_response(_response("<p>test</p>"))
+        self._add_response(_response("<p>test 1</p>"))
         mock_mastodon = mock_Mastodon.return_value
 
         xpost(self.xpost_config)
@@ -201,16 +201,23 @@ class XposterTestCase(unittest.TestCase):
 
         time.sleep(1)
         self._add_response(_response_with_items([
-            TestItem("<p>test 2</p><img src=\"http://nitter.example.com/pic/media%2Faaaaaa.jpg\" style=\"max-width:250px;\" />", 2),
+            TestItem("<p>test 3</p><img src=\"http://nitter.example.com/pic/media%2Faaaaaa.jpg\" style=\"max-width:250px;\" />", 3),
+            TestItem("<p>test 2</p>", 2),
             TestItem("<p>test 1</p>", 1),
         ]))
-        
         mock_download_image_to_tmp_file.return_value = None
+
         xpost(self.xpost_config)
-        mock_download_image_to_tmp_file.assert_called_once_with("http://nitter.example.com/pic/media%2Faaaaaa.jpg")
+
+        # call a third time to make sure
+        # the position was indeed updated to test 2
+        # after failed to download image for test 3
+        # instead of getting stuck at test 1 and reposting test 2
+        xpost(self.xpost_config)
+        mock_download_image_to_tmp_file.assert_called_with("http://nitter.example.com/pic/media%2Faaaaaa.jpg")
         mock_mastodon.media_post.assert_not_called()
         mock_cleanup_tmp_file.assert_not_called()
-        mock_mastodon.status_post.assert_not_called()
+        mock_mastodon.status_post.assert_called_once_with(status="test 2", media_ids=[])
 
     @patch('nitter_xposter.xposter.Mastodon')
     @responses.activate

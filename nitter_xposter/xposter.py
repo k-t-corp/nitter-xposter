@@ -113,6 +113,46 @@ def cleanup_tmp_file(image_file: str):
     os.remove(image_file)
 
 
+
+def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
+    status_text = ''
+
+    if parsed_entry.text:
+        status_text += parsed_entry.text
+
+    if parsed_entry.rt:
+        status_text += f"\nRT: {parsed_entry.rt}"
+
+    media_ids = []
+    if parsed_entry.images:
+        for image in parsed_entry.images:
+            image_file = download_image_to_tmp_file(image)
+            if not image_file:
+                logging.error("Error downloading image from nitter, aborting: " + image)
+                return False
+            logging.info("Uploading image to Mastodon: " + image_file)
+            try:
+                media = mastodon.media_post(image_file)
+            except Exception as e:
+                # TODO: handle error
+                logging.error("Error post media to Mastodon, aborting: " + str(e))
+                return False
+            if 'id' not in media:
+                logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
+                return False
+            media_ids.append(media['id'])
+            cleanup_tmp_file(image_file)
+
+    logging.info("Sending to Mastodon: " + status_text)
+    try:
+        mastodon.status_post(status=status_text, media_ids=media_ids)
+        return True
+    except Exception as e:
+        # TODO: handle error
+        logging.error("Error sending to Mastodon, aborting: " + str(e))
+        return False
+
+
 def xpost(config: XpostConfig):
     logging.info("Started crosspost")
     setup_database(config.sqlite_file)
@@ -168,42 +208,9 @@ def xpost(config: XpostConfig):
     new_position_index = last_position_index - 1
     for i in range(new_position_index, max(-1, new_position_index - config.mastodon_status_limit), -1):
         parsed_entry = parsed_entries[i]
-        status_text = ''
-
-        if parsed_entry.text:
-            status_text += parsed_entry.text
-
-        if parsed_entry.rt:
-            status_text += f"\nRT: {parsed_entry.rt}"
-
-        media_ids = []
-        if parsed_entry.images:
-            for image in parsed_entry.images:
-                image_file = download_image_to_tmp_file(image)
-                if not image_file:
-                    logging.error("Error downloading image from nitter, aborting: " + image)
-                    return
-                logging.info("Uploading image to Mastodon: " + image_file)
-                try:
-                    media = mastodon.media_post(image_file)
-                except Exception as e:
-                    # TODO: handle error
-                    logging.error("Error post media to Mastodon, aborting: " + str(e))
-                    return
-                if 'id' not in media:
-                    logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
-                    return
-                media_ids.append(media['id'])
-                cleanup_tmp_file(image_file)
-
-        logging.info("Sending to Mastodon: " + status_text)
-        try:
-            mastodon.status_post(status=status_text, media_ids=media_ids)
-            new_position_index = i
-        except Exception as e:
-            # TODO: handle error
-            logging.error("Error sending to Mastodon, aborting: " + str(e))
+        if not post_to_mastodon(parsed_entry, mastodon):
             break
+        new_position_index = i
 
     # Set last position to the newest entry
     set_last_position(config.sqlite_file, rss_url, parsed_entries[new_position_index].id)
