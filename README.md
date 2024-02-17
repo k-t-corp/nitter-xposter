@@ -56,7 +56,11 @@ services:
 
 This will crawl the Nitter RSS for your Twitter username every 5 minutes, and crosspost the tweets to your Mastodon account.
 
+## Like what you see?
+Consider support us on [Patreon](https://www.patreon.com/sekaisoft) :)
+
 ## Development
+
 ### Run unit tests
 ```shell
 python -m unittest discover
