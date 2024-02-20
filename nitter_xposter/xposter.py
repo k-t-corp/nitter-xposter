@@ -71,6 +71,7 @@ class ParsedEntry:
     rt: Optional[str]
     image_urls: List[str]
     image_files: List[str]
+    mastodon_media_ids: List[str]
 
 
 def download_image_to_tmp_file(url: str) -> Optional[str]:
@@ -86,7 +87,7 @@ def download_image_to_tmp_file(url: str) -> Optional[str]:
 
 
 def parse_feed_entry(entry, twitter_handle, nitter_host: str) -> ParsedEntry:
-    parsed_entry = ParsedEntry(entry.id, None, None, [], [])
+    parsed_entry = ParsedEntry(entry.id, None, None, [], [], [])
     if entry.description:
         # Parse text
         text = convert_description_to_text(entry.description, nitter_host)
@@ -114,6 +115,20 @@ def cleanup_tmp_file(image_file: str):
     os.remove(image_file)
 
 
+def upload_media_to_mastodon(image_file: str, mastodon) -> Optional[str]:
+    logging.info("Uploading image to Mastodon: " + image_file)
+    try:
+        media = mastodon.media_post(image_file)
+    except Exception as e:
+        # TODO: handle error
+        logging.error("Error post media to Mastodon, aborting: " + str(e))
+        return None
+    if 'id' not in media:
+        logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
+        return None
+    return media['id']
+
+
 def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
     status_text = ''
 
@@ -123,24 +138,9 @@ def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
     if parsed_entry.rt:
         status_text += f"\nRT: {parsed_entry.rt}"
 
-    media_ids = []
-    if parsed_entry.image_files:
-        for image_file in parsed_entry.image_files:
-            logging.info("Uploading image to Mastodon: " + image_file)
-            try:
-                media = mastodon.media_post(image_file)
-            except Exception as e:
-                # TODO: handle error
-                logging.error("Error post media to Mastodon, aborting: " + str(e))
-                return False
-            if 'id' not in media:
-                logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
-                return False
-            media_ids.append(media['id'])
-
     logging.info("Sending to Mastodon: " + status_text)
     try:
-        mastodon.status_post(status=status_text, media_ids=media_ids)
+        mastodon.status_post(status=status_text, media_ids=parsed_entry.mastodon_media_ids)
         return True
     except Exception as e:
         # TODO: handle error
@@ -212,6 +212,18 @@ def xpost(config: XpostConfig):
             parsed_entries[i].image_files.append(image_file)
 
         if failed_to_download_any:
+            break
+        
+        # Upload image files for mastodon
+        failed_to_upload_any = False
+        for image_file in parsed_entry.image_files:
+            media_id = upload_media_to_mastodon(image_file, mastodon)
+            if not media_id:
+                failed_to_upload_any = True
+                break
+            parsed_entries[i].mastodon_media_ids.append(media_id)
+        
+        if failed_to_upload_any:
             break
 
         # Send mastodon statuses
