@@ -69,19 +69,31 @@ class ParsedEntry:
     id: str
     text: Optional[str]
     rt: Optional[str]
-    images: List[str]
+    image_urls: List[str]
+    image_files: List[str]
+
+
+def download_image_to_tmp_file(url: str) -> Optional[str]:
+    # TODO: assumes nitter uses jpg?
+    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
+        logging.info("Downloading image from nitter: " + url)
+        res = requests.get(url)
+        if res.status_code >= 400:
+            logging.error("Image downloading encountered with >= 400 status code, aborting: " + url)
+            return None
+        f.write(res.content)
+        return f.name
 
 
 def parse_feed_entry(entry, twitter_handle, nitter_host: str) -> ParsedEntry:
-    parsed_entry = ParsedEntry(entry.id, None, None, [])
+    parsed_entry = ParsedEntry(entry.id, None, None, [], [])
     if entry.description:
         # Parse text
         text = convert_description_to_text(entry.description, nitter_host)
         parsed_entry.text = text
 
         # Parse images
-        images = find_images_in_description(entry.description)
-        parsed_entry.images = images
+        parsed_entry.image_urls = find_images_in_description(entry.description)
 
     if entry.author and entry.author != f"@{twitter_handle}" and entry.link:
         # Parse RT
@@ -97,21 +109,9 @@ def parse_feed_entry(entry, twitter_handle, nitter_host: str) -> ParsedEntry:
     return parsed_entry
 
 
-def download_image_to_tmp_file(image: str) -> Optional[str]:
-    # TODO: assumes twitter uses jpg?
-    with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
-        logging.info("Downloading image from nitter: " + image)
-        res = requests.get(image)
-        if res.status_code >= 400:
-            logging.error("Image downloading encountered with >= 400 status code, aborting: " + image)
-            return None
-        f.write(res.content)
-        return f.name
-
-
 def cleanup_tmp_file(image_file: str):
+    print(f"Cleaning up tmp file {image_file}")
     os.remove(image_file)
-
 
 
 def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
@@ -124,12 +124,8 @@ def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
         status_text += f"\nRT: {parsed_entry.rt}"
 
     media_ids = []
-    if parsed_entry.images:
-        for image in parsed_entry.images:
-            image_file = download_image_to_tmp_file(image)
-            if not image_file:
-                logging.error("Error downloading image from nitter, aborting: " + image)
-                return False
+    if parsed_entry.image_files:
+        for image_file in parsed_entry.image_files:
             logging.info("Uploading image to Mastodon: " + image_file)
             try:
                 media = mastodon.media_post(image_file)
@@ -141,7 +137,6 @@ def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
                 logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
                 return False
             media_ids.append(media['id'])
-            cleanup_tmp_file(image_file)
 
     logging.info("Sending to Mastodon: " + status_text)
     try:
@@ -171,13 +166,12 @@ def xpost(config: XpostConfig):
     feed = feedparser.parse(res.text)
 
     parsed_entries = []  # type: List[ParsedEntry]
-    # Checking if the feed was successfully parsed
     if feed.bozo == 0:
-        # Successfully parsed
         for entry in feed.entries:
-            parsed_entries.append(parse_feed_entry(entry, config.twitter_handle, config.nitter_host))
+            parsed_entry = parse_feed_entry(entry, config.twitter_handle, config.nitter_host)
+            parsed_entries.append(parsed_entry)
     else:
-        raise feed.bozo_exception  
+        raise feed.bozo_exception
     
     if not parsed_entries:
         # TODO: handle case. might be locked account? might be nitter down?
@@ -198,7 +192,6 @@ def xpost(config: XpostConfig):
         set_last_position(config.sqlite_file, rss_url, parsed_entries[0].id)
         return
 
-    # Send mastodon statuses
     mastodon = Mastodon(
         client_id=config.mastodon_client_id,
         client_secret=config.mastodon_client_secret,
@@ -208,10 +201,29 @@ def xpost(config: XpostConfig):
     new_position_index = last_position_index - 1
     for i in range(new_position_index, max(-1, new_position_index - config.mastodon_status_limit), -1):
         parsed_entry = parsed_entries[i]
+        
+        # Download image files for entry
+        failed_to_download_any = False
+        for image_url in parsed_entry.image_urls:
+            image_file = download_image_to_tmp_file(image_url)
+            if not image_file:
+                failed_to_download_any = True
+                break
+            parsed_entries[i].image_files.append(image_file)
+
+        if failed_to_download_any:
+            break
+
+        # Send mastodon statuses
         if not post_to_mastodon(parsed_entry, mastodon):
             break
         new_position_index = i
 
     # Set last position to the newest entry
     set_last_position(config.sqlite_file, rss_url, parsed_entries[new_position_index].id)
+
+    # Clean up image files
+    for parsed_entry in parsed_entries:
+        for image_file in parsed_entry.image_files:
+            cleanup_tmp_file(image_file)
     logging.info("Finished crosspost")
