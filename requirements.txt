@@ -3,3 +3,4 @@ beautifulsoup4==4.12.2
 Mastodon.py==1.8.1
 requests==2.31.0
 responses==0.24.1
+atproto==0.0.42
