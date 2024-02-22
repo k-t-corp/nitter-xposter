@@ -10,6 +10,8 @@ from bs4 import BeautifulSoup
 from mastodon import Mastodon
 from urllib.parse import urlparse, urlunparse
 from .db import setup_database, get_last_position, set_last_position
+from .mastodon import upload_media_to_mastodon, post_to_mastodon
+from .parsed_entry import ParsedEntry
 
 
 @dataclass
@@ -64,16 +66,6 @@ def find_images_in_description(description):
     return image_urls
 
 
-@dataclass
-class ParsedEntry:
-    id: str
-    text: Optional[str]
-    rt: Optional[str]
-    image_urls: List[str]
-    image_files: List[str]
-    mastodon_media_ids: List[str]
-
-
 def download_image_to_tmp_file(url: str) -> Optional[str]:
     # TODO: assumes nitter uses jpg?
     with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as f:
@@ -113,39 +105,6 @@ def parse_feed_entry(entry, twitter_handle, nitter_host: str) -> ParsedEntry:
 def cleanup_tmp_file(image_file: str):
     print(f"Cleaning up tmp file {image_file}")
     os.remove(image_file)
-
-
-def upload_media_to_mastodon(image_file: str, mastodon) -> Optional[str]:
-    logging.info("Uploading image to Mastodon: " + image_file)
-    try:
-        media = mastodon.media_post(image_file)
-    except Exception as e:
-        # TODO: handle error
-        logging.error("Error post media to Mastodon, aborting: " + str(e))
-        return None
-    if 'id' not in media:
-        logging.error("Weird, id not found in media uploaded to Mastodon, aborting: " + image_file)
-        return None
-    return media['id']
-
-
-def post_to_mastodon(parsed_entry: ParsedEntry, mastodon) -> bool:
-    status_text = ''
-
-    if parsed_entry.text:
-        status_text += parsed_entry.text
-
-    if parsed_entry.rt:
-        status_text += f"\nRT: {parsed_entry.rt}"
-
-    logging.info("Sending to Mastodon: " + status_text)
-    try:
-        mastodon.status_post(status=status_text, media_ids=parsed_entry.mastodon_media_ids)
-        return True
-    except Exception as e:
-        # TODO: handle error
-        logging.error("Error sending to Mastodon, aborting: " + str(e))
-        return False
 
 
 def xpost(config: XpostConfig):
