@@ -33,7 +33,7 @@ def post_to_bsky(parsed_entry: ParsedEntry, logged_in_client: Client):
         profile_identify=None,
         reply_to=None,
         embed=atproto.models.AppBskyEmbedImages.Main(
-            images=[blob_to_image(blob) for blob in parsed_entry.images]
+            images=[blob_to_image(blob) for blob in parsed_entry.bsky_blobs]
         ),
         # TODO: should probably addd langs??
         langs=None,
