@@ -9,8 +9,10 @@ from dataclasses import dataclass
 from bs4 import BeautifulSoup
 from mastodon import Mastodon
 from urllib.parse import urlparse, urlunparse
+from atproto import Client
 from .db import setup_database, get_last_position, set_last_position
 from .mastodon import upload_media_to_mastodon, post_to_mastodon
+from .bsky import upload_media_to_bsky, post_to_bsky
 from .parsed_entry import ParsedEntry
 
 
@@ -20,11 +22,23 @@ class XpostConfig:
     nitter_host: str
     nitter_https: bool
     twitter_handle: str
-    mastodon_host: str
-    mastodon_client_id: str
-    mastodon_client_secret: str
-    mastodon_access_token: str
+    mastodon_host: Optional[str]
+    mastodon_client_id: Optional[str]
+    mastodon_client_secret: Optional[str]
+    mastodon_access_token: Optional[str]
     mastodon_status_limit: int
+    bsky_handle: Optional[str]
+    bsky_password: Optional[str]
+    bsky_status_limit: int
+
+    def is_mastodon(self):
+        return self.mastodon_host \
+            and self.mastodon_client_id \
+                and self.mastodon_client_secret \
+                    and self.mastodon_access_token
+
+    def is_bsky(self):
+        return self.bsky_handle and self.bsky_password
 
 
 def convert_description_to_text(description, nitter_host):
@@ -79,7 +93,7 @@ def download_image_to_tmp_file(url: str) -> Optional[str]:
 
 
 def parse_feed_entry(entry, twitter_handle, nitter_host: str) -> ParsedEntry:
-    parsed_entry = ParsedEntry(entry.id, None, None, [], [], [])
+    parsed_entry = ParsedEntry(entry.id, None, None, [], [], [], [])
     if entry.description:
         # Parse text
         text = convert_description_to_text(entry.description, nitter_host)
@@ -110,6 +124,20 @@ def cleanup_tmp_file(image_file: str):
 def xpost(config: XpostConfig):
     logging.info("Started crosspost")
     setup_database(config.sqlite_file)
+
+    # Determine target social network to crosspost to
+    if config.is_mastodon() and not config.is_bsky():
+        mastodon = Mastodon(
+            client_id=config.mastodon_client_id,
+            client_secret=config.mastodon_client_secret,
+            access_token=config.mastodon_access_token,
+            api_base_url=f"https://{config.mastodon_host}"
+        )
+    elif config.is_bsky() and not config.is_mastodon():
+        bsky = Client()
+        bsky.login(config.bsky_handle, config.bsky_password)
+    else:
+        raise Exception("Must specify either Mastodon or bsky credentials. Cannot specify both or neither.")
 
     # Parsing the RSS feed
     if config.nitter_https:
@@ -151,12 +179,6 @@ def xpost(config: XpostConfig):
         set_last_position(config.sqlite_file, rss_url, parsed_entries[0].id)
         return
 
-    mastodon = Mastodon(
-        client_id=config.mastodon_client_id,
-        client_secret=config.mastodon_client_secret,
-        access_token=config.mastodon_access_token,
-        api_base_url=f"https://{config.mastodon_host}"
-    )
     new_position_index = last_position_index - 1
     for i in range(new_position_index, max(-1, new_position_index - config.mastodon_status_limit), -1):
         parsed_entry = parsed_entries[i]
@@ -173,21 +195,39 @@ def xpost(config: XpostConfig):
         if failed_to_download_any:
             break
         
-        # Upload image files for mastodon
-        failed_to_upload_any = False
-        for image_file in parsed_entry.image_files:
-            media_id = upload_media_to_mastodon(image_file, mastodon)
-            if not media_id:
-                failed_to_upload_any = True
+        if config.is_mastodon():
+            # Upload image files for mastodon
+            failed_to_upload_any = False
+            for image_file in parsed_entry.image_files:
+                media_id = upload_media_to_mastodon(image_file, mastodon)
+                if not media_id:
+                    failed_to_upload_any = True
+                    break
+                parsed_entries[i].mastodon_media_ids.append(media_id)
+            
+            if failed_to_upload_any:
                 break
-            parsed_entries[i].mastodon_media_ids.append(media_id)
-        
-        if failed_to_upload_any:
-            break
 
-        # Send mastodon statuses
-        if not post_to_mastodon(parsed_entry, mastodon):
-            break
+            # Send mastodon statuses
+            if not post_to_mastodon(parsed_entry, mastodon):
+                break
+
+        elif config.is_bsky():
+            # Upload image files for bsky
+            failed_to_upload_any = False
+            for image_file in parsed_entry.image_files:
+                blob = upload_media_to_bsky(image_file, bsky)
+                if not blob:
+                    failed_to_upload_any = True
+                    break
+                parsed_entries[i].bsky_blobs.append(blob)
+            
+            if failed_to_upload_any:
+                break
+
+            # Send bsky statuses
+            post_to_bsky(parsed_entry, bsky)
+
         new_position_index = i
 
     # Set last position to the newest entry

@@ -63,7 +63,10 @@ class XposterTestCase(unittest.TestCase):
             mastodon_client_id='client_id',
             mastodon_client_secret='client_secret',
             mastodon_access_token='access_token',
-            mastodon_status_limit=10
+            mastodon_status_limit=10,
+            bsky_handle=None,
+            bsky_password=None,
+            bsky_status_limit=10
         )
 
     def _add_response(self, body):
