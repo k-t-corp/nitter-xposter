@@ -1,0 +1,16 @@
+version: '3'
+services:
+  app:
+    build: .
+    volumes:
+      - ./dbs:/app/dbs
+    environment:
+      SQLITE_FILE: /app/dbs/db.db
+      NITTER_HOST: ${NITTER_HOST}
+      NITTER_HTTPS: ${NITTER_HTTPS}
+      TWITTER_HANDLE: ${TWITTER_HANDLE}
+      MASTODON_HOST: ${MASTODON_HOST}
+      MASTODON_CLIENT_ID: ${MASTODON_CLIENT_ID}
+      MASTODON_CLIENT_SECRET: ${MASTODON_CLIENT_SECRET}
+      MASTODON_ACCESS_TOKEN: ${MASTODON_ACCESS_TOKEN}
+      MASTODON_STATUS_LIMIT: '10'

@@ -14,6 +14,7 @@ When it's ready, please check out [sekai-soft/freebird](https://github.com/sekai
 - [x] Text
 - [x] Retweet
 - [x] Image
+- [ ] Replies to your own Tweet
 - [ ] Video
 
 ## Usage
