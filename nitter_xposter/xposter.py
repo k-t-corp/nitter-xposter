@@ -226,7 +226,8 @@ def xpost(config: XpostConfig):
                 break
 
             # Send bsky statuses
-            post_to_bsky(parsed_entry, bsky)
+            if not post_to_bsky(parsed_entry, bsky):
+                break
 
         new_position_index = i
 
