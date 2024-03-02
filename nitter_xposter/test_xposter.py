@@ -5,6 +5,7 @@ import glob
 import responses
 import time
 import copy
+import atproto
 from dataclasses import dataclass
 from unittest.mock import patch, call
 from datetime import datetime, timezone
@@ -239,6 +240,92 @@ class XposterTestCase(unittest.TestCase):
         
         xpost(self.xpost_config)
         mock_mastodon.status_post.assert_called_once_with(status="test 2 https://twitter.com/search?q=%23hashtag", media_ids=[])
+
+    @patch('nitter_xposter.xposter.Client')
+    @responses.activate
+    def test_xpost_one_new_status_to_bsky_with_links(self, mock_AtProtoClient):
+        self._add_response(_response("<p>test</p>"))
+        mock_bsky_client = mock_AtProtoClient.return_value
+
+        xpost_config = XpostConfig(
+            sqlite_file=f"test_{uuid.uuid4()}.db",
+            nitter_host='nitter.example.com',
+            nitter_https=True,
+            twitter_handle='twitter_handle',
+            mastodon_host=None,
+            mastodon_client_id=None,
+            mastodon_client_secret=None,
+            mastodon_access_token=None,
+            mastodon_status_limit=10,
+            bsky_handle='test_handle',
+            bsky_password='test_password_this_should_not_work',
+            bsky_status_limit=10
+        )
+
+        xpost(xpost_config)
+        mock_bsky_client.send_post.assert_not_called()
+
+        time.sleep(1)
+        self._add_response(_response_with_items([
+            TestItem("test 5 <p><a href=\"http://nitter.example.com/search?q=%23hashtag\">#hashtag</a></p> test 5 <p><a href=\"http://nitter.example.com/search?q=%23hashtag2\">#hashtag2</a></p> test 5", 5),
+            TestItem("<p><a href=\"http://nitter.example.com/search?q=%23hashtag\">#hashtag</a></p> test 4", 4),
+            TestItem("<p>test 3 <a href=\"http://nitter.example.com/search?q=%23hashtag\">#hashtag</a></p>", 3),
+            TestItem("<p>test 2</p>", 2),
+            TestItem("<p>test 1</p>", 1),
+        ]))
+        
+        def link_facet(uri: str, byte_start: int, byte_end: int) -> 'atproto.models.AppBskyRichtextFacet.Main':
+            return atproto.models.AppBskyRichtextFacet.Main(
+                features=[
+                    atproto.models.AppBskyRichtextFacet.Link(
+                        uri=uri
+                    )
+                ],
+                index=atproto.models.AppBskyRichtextFacet.ByteSlice(
+                    byte_start=byte_start,
+                    byte_end=byte_end
+                )
+            )
+
+        def text_only_send_post_call(text: str, link_facets: List['atproto.models.AppBskyRichtextFacet.Main']):
+            return call(
+                text=text,
+                profile_identify=None,
+                reply_to=None,
+                embed=atproto.models.AppBskyEmbedImages.Main(
+                    images=[],
+                ),
+                langs=None,
+                facets=link_facets
+            )
+
+        xpost(xpost_config)
+        expected_calls = [
+            text_only_send_post_call(
+                text="test 2",
+                link_facets=[]
+            ),
+            text_only_send_post_call(
+                text="test 3 https://twitter.com/search?...",
+                link_facets=[
+                    link_facet("https://twitter.com/search?q=%23hashtag", 7, 37)
+                ]
+            ),
+            text_only_send_post_call(
+                text="https://twitter.com/search?...test 4",
+                link_facets=[
+                    link_facet("https://twitter.com/search?q=%23hashtag", 0, 30)
+                ]
+            ),
+            text_only_send_post_call(
+                text="test 5 https://twitter.com/search?...test 5 https://twitter.com/search?...test 5",
+                link_facets=[
+                    link_facet("https://twitter.com/search?q=%23hashtag", 7, 37),
+                    link_facet("https://twitter.com/search?q=%23hashtag2", 44, 74),
+                ]
+            )
+        ]
+        self.assertEqual(mock_bsky_client.send_post.call_args_list, expected_calls)
 
     @patch('nitter_xposter.xposter.Mastodon')
     @responses.activate
