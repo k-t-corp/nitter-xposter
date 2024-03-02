@@ -344,11 +344,11 @@ class XposterTestCase(unittest.TestCase):
         ]))
         
         xpost(self.xpost_config)
-        mock_mastodon.status_post.assert_has_calls([
+        expected_calls = [
             call(status="test 2", media_ids=[]),
             call(status="test 3", media_ids=[])
-        ], any_order=False)
-        self.assertEqual(mock_mastodon.status_post.call_count, 2)
+        ]
+        self.assertEqual(mock_mastodon.status_post.call_args_list, expected_calls)
 
     
     @patch('nitter_xposter.xposter.Mastodon')
@@ -371,11 +371,11 @@ class XposterTestCase(unittest.TestCase):
         ]))
         
         xpost(xpost_config)
-        mock_mastodon.status_post.assert_has_calls([
+        expected_calls = [
             call(status="test 2", media_ids=[]),
             call(status="test 3", media_ids=[])
-        ], any_order=False)
-        self.assertEqual(mock_mastodon.status_post.call_count, 2)
+        ]
+        self.assertEqual(mock_mastodon.status_post.call_args_list, expected_calls)
 
 
     @patch('nitter_xposter.xposter.Mastodon')
@@ -397,19 +397,20 @@ class XposterTestCase(unittest.TestCase):
         
         mock_mastodon.status_post.side_effect = [None, Exception("Error posting status"), None]
         xpost(self.xpost_config)
-        mock_mastodon.status_post.assert_has_calls([
+        expected_calls = [
             call(status="test 2", media_ids=[]),
             call(status="test 3", media_ids=[])
-        ], any_order=False)
-        self.assertEqual(mock_mastodon.status_post.call_count, 2)
+        ]
+        self.assertEqual(mock_mastodon.status_post.call_args_list, expected_calls)
         mock_mastodon.status_post.side_effect = [None, None]
         xpost(self.xpost_config)
-        mock_mastodon.status_post.assert_has_calls([
+        expected_calls = [
+            call(status="test 2", media_ids=[]),
+            call(status="test 3", media_ids=[]),
             call(status="test 3", media_ids=[]),
             call(status="test 4", media_ids=[])
-        ], any_order=False)
-        # Assert 4 because the first run calls 2, 3 (although 3 fails) and the second run calls 3, 4
-        self.assertEqual(mock_mastodon.status_post.call_count, 4)
+        ]
+        self.assertEqual(mock_mastodon.status_post.call_args_list, expected_calls)
 
     @classmethod
     def tearDownClass(cls):
