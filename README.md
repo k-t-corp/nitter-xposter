@@ -1,12 +1,12 @@
 # nitter-xposter
-Crosspost from Twitter to Mastodon (based on Nitter)
+Crosspost from Twitter to Mastodon and Bluesky (based on Nitter)
 
 ## ⚠️ PSA
 It is increasingly [hard](https://github.com/zedeus/nitter/issues/983) to use and host a public Nitter instance.
 
 As a result, it is probably not a good idea to use it with a public Nitter instance.
 
-When it's ready, please check out [sekai-soft/freebird](https://github.com/sekai-soft/freebird) for a guide on how to self-host your own Nitter instance alongside `nitter-xposter`.
+Check out [sekai-soft/freebird](https://github.com/sekai-soft/freebird) for a guide on how to self-host your own Nitter instance alongside `nitter-xposter`.
 
 ## Notice
 * Twitter crawling is based on Nitter, so only public accounts are supported.
@@ -20,7 +20,7 @@ When it's ready, please check out [sekai-soft/freebird](https://github.com/sekai
 ## Usage
 The easiest way to use this program is to run it as a docker compose service on your NAS or a VPS.
 
-### Obtain Mastodon credentials
+### Crosspost to Mastodon
 You need to create a developer application on your Mastodon instance first
 
 1. Go to `https://<your-mastodon-instance>/settings/applications/new`
@@ -56,6 +56,28 @@ services:
 ```
 
 This will crawl the Nitter RSS for your Twitter username every 5 minutes, and crosspost the tweets to your Mastodon account.
+
+### Crosspost to Bluesky
+You can use the following `docker-compose.yml` to run the program
+```yaml
+version: '3'
+services:
+  app:
+    image: ghcr.io/k-t-corp/nitter-xposter:latest
+    volumes:
+      - ./dbs:/app/dbs
+#      - ./post.sh:/app/post.sh  # you can optionally mount a shell script at /app/post.sh to run after every Nitter crawl to perform tasks such as sending a heartbeat
+    environment:
+      SQLITE_FILE: /app/dbs/db.db
+      NITTER_HOST: <ENTER YOUR NITTER HOST HERE>
+      NITTER_HTTPS: <'true' OR 'false'>  # by default 'true'; set to 'false' if your Nitter instance does not support https
+      TWITTER_HANDLE: <REPLACE WITH YOUR TWITTER USERNAME, WITHOUT @>
+     BSKY_HANDLE: ${BSKY_HANDLE}
+      BSKY_PASSWORD: ${BSKY_PASSWORD}
+      BSKY_STATUS_LIMIT: '10'   # set the maximum of statuses to be posted at once
+      INTERVAL_MINUTES: '30'  # it is recommended to set the polling interval at least 5 minutes so that it doesn't violate Bluesky's createSession rate limit https://docs.bsky.app/docs/advanced-guides/rate-limits
+    restart: always
+```
 
 ## Like what you see?
 Consider support us on [Patreon](https://www.patreon.com/sekaisoft) :)
