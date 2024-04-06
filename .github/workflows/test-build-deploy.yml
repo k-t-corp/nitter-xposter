@@ -46,6 +46,7 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository }}:latest
           platforms: linux/amd64
+
   build-arm:
     runs-on: buildjet-2vcpu-ubuntu-2204-arm
     needs: test
@@ -69,7 +70,9 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: build
+    needs:
+      - build
+      - build-arm
     if: github.event_name == 'push'
     steps:
       - name: Setup Tailscale
